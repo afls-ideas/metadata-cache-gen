@@ -34,21 +34,18 @@ sf project deploy start --source-dir classes --target-org <your-org-alias>
 
 ## Option 1: Run On-Demand (Anonymous Apex)
 
-Edit the `profileNames` list in `generate_metadata_cache.apex` to match your org:
+`generate_metadata_cache.apex` calls `MetadataGeneratorSchedulable.execute(null)` directly, reusing the same logic as the scheduled job.
 
-```apex
-List<String> profileNames = new List<String>{
-    'Field Sales Representative',
-    'Key Account Manager'
-};
-```
-
-Add or remove profiles as needed — each gets its own child record under a single shared parent.
-
-Run it:
+With default profiles:
 
 ```bash
 sf apex run --file generate_metadata_cache.apex --target-org <your-org-alias>
+```
+
+Or run inline with custom profiles:
+
+```bash
+sf apex run --target-org <your-org-alias> -f <(echo "new MetadataGeneratorSchedulable(new List<String>{'Field Sales Representative', 'Key Account Manager', 'Field Medical'}).execute(null);")
 ```
 
 When run from Anonymous Apex, `UserInfo.getSessionId()` is available and the callout authenticates with the current user's session.
