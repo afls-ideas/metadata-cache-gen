@@ -1,12 +1,15 @@
 public class MetadataGeneratorSchedulable implements Schedulable {
-    private String profileName;
+    private List<String> profileNames;
 
-    public MetadataGeneratorSchedulable(String profileName) {
-        this.profileName = profileName;
+    public MetadataGeneratorSchedulable(List<String> profileNames) {
+        this.profileNames = profileNames;
     }
 
     public MetadataGeneratorSchedulable() {
-        this('Field Sales Representative');
+        this(new List<String>{
+            'Field Sales Representative',
+            'Key Account Manager'
+        });
     }
 
     public void execute(SchedulableContext sc) {
@@ -16,24 +19,35 @@ public class MetadataGeneratorSchedulable implements Schedulable {
         );
         insert parent;
 
-        Profile pf = [SELECT Id FROM Profile WHERE Name = :profileName LIMIT 1];
+        Map<String, Id> profileMap = new Map<String, Id>();
+        for (Profile pf : [SELECT Id, Name FROM Profile WHERE Name IN :profileNames]) {
+            profileMap.put(pf.Name, pf.Id);
+        }
 
-        LifeSciMobileMetadataRecord child = new LifeSciMobileMetadataRecord(
-            ParentMobileMetadataRecId = parent.Id,
-            ProfileId = pf.Id,
-            IntegrationStatus = 'New',
-            Status = 'New'
-        );
-        insert child;
+        List<LifeSciMobileMetadataRecord> children = new List<LifeSciMobileMetadataRecord>();
+        for (String name : profileNames) {
+            if (profileMap.containsKey(name)) {
+                children.add(new LifeSciMobileMetadataRecord(
+                    ParentMobileMetadataRecId = parent.Id,
+                    ProfileId = profileMap.get(name),
+                    IntegrationStatus = 'New',
+                    Status = 'New'
+                ));
+            } else {
+                System.debug('WARNING: Profile not found — ' + name);
+            }
+        }
+        insert children;
 
         parent.Status = 'ValidationCompleted';
         update parent;
 
-        child.Status = 'ValidationCompleted';
-        update child;
+        for (LifeSciMobileMetadataRecord child : children) {
+            child.Status = 'ValidationCompleted';
+        }
+        update children;
 
         System.debug('Parent Id: ' + parent.Id);
-        System.debug('Child Id: ' + child.Id);
 
         MetadataGeneratorCallout.callMetadataEndpoint(parent.Id);
     }

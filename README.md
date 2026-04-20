@@ -34,11 +34,16 @@ sf project deploy start --source-dir classes --target-org <your-org-alias>
 
 ## Option 1: Run On-Demand (Anonymous Apex)
 
-Edit `generate_metadata_cache.apex` and set the profile name for your org:
+Edit the `profileNames` list in `generate_metadata_cache.apex` to match your org:
 
 ```apex
-Profile pf = [SELECT Id FROM Profile WHERE Name = 'Field Sales Representative' LIMIT 1];
+List<String> profileNames = new List<String>{
+    'Field Sales Representative',
+    'Key Account Manager'
+};
 ```
+
+Add or remove profiles as needed — each gets its own child record under a single shared parent.
 
 Run it:
 
@@ -66,16 +71,22 @@ The Schedulable class requires a **Named Credential** called `SelfOrg` because `
 
 ### Schedule the Job
 
-With default profile (`Field Sales Representative`):
+With default profiles (`Field Sales Representative` + `Key Account Manager`):
 
 ```apex
 System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new MetadataGeneratorSchedulable());
 ```
 
-With a specific profile:
+With custom profiles:
 
 ```apex
-System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new MetadataGeneratorSchedulable('Key Account Manager'));
+System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN',
+    new MetadataGeneratorSchedulable(new List<String>{
+        'Field Sales Representative',
+        'Key Account Manager',
+        'Field Medical'
+    })
+);
 ```
 
 The cron expression `0 0 2 ? * SUN` runs every Sunday at 2:00 AM. Adjust as needed.

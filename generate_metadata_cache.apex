@@ -1,5 +1,10 @@
-// Generate LSC Mobile Metadata Cache — Single-step Anonymous Apex
+// Generate LSC Mobile Metadata Cache — Anonymous Apex
 // Requires: MetadataGeneratorCallout class deployed to the org
+
+List<String> profileNames = new List<String>{
+    'Field Sales Representative',
+    'Key Account Manager'
+};
 
 LifeSciMobileMetadataRecord parent = new LifeSciMobileMetadataRecord(
     IntegrationStatus = 'New',
@@ -7,24 +12,42 @@ LifeSciMobileMetadataRecord parent = new LifeSciMobileMetadataRecord(
 );
 insert parent;
 
-Profile pf = [SELECT Id FROM Profile WHERE Name = 'Field Sales Representative' LIMIT 1];
+Map<String, Id> profileMap = new Map<String, Id>();
+for (Profile pf : [SELECT Id, Name FROM Profile WHERE Name IN :profileNames]) {
+    profileMap.put(pf.Name, pf.Id);
+}
 
-LifeSciMobileMetadataRecord child = new LifeSciMobileMetadataRecord(
-    ParentMobileMetadataRecId = parent.Id,
-    ProfileId = pf.Id,
-    IntegrationStatus = 'New',
-    Status = 'New'
-);
-insert child;
+for (String name : profileNames) {
+    if (!profileMap.containsKey(name)) {
+        System.debug('WARNING: Profile not found — ' + name);
+    }
+}
+
+List<LifeSciMobileMetadataRecord> children = new List<LifeSciMobileMetadataRecord>();
+for (String name : profileNames) {
+    if (profileMap.containsKey(name)) {
+        children.add(new LifeSciMobileMetadataRecord(
+            ParentMobileMetadataRecId = parent.Id,
+            ProfileId = profileMap.get(name),
+            IntegrationStatus = 'New',
+            Status = 'New'
+        ));
+    }
+}
+insert children;
 
 parent.Status = 'ValidationCompleted';
 update parent;
 
-child.Status = 'ValidationCompleted';
-update child;
+for (LifeSciMobileMetadataRecord child : children) {
+    child.Status = 'ValidationCompleted';
+}
+update children;
 
 System.debug('Parent Id: ' + parent.Id);
-System.debug('Child Id: ' + child.Id);
+for (LifeSciMobileMetadataRecord child : children) {
+    System.debug('Child Id: ' + child.Id);
+}
 
 MetadataGeneratorCallout.callMetadataEndpoint(parent.Id);
 
