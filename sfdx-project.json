@@ -1,0 +1,9 @@
+{
+  "packageDirectories": [
+    {
+      "path": ".",
+      "default": true
+    }
+  ],
+  "sourceApiVersion": "66.0"
+}

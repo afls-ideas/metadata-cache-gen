@@ -2,27 +2,33 @@
 
 Generate the Life Sciences Cloud (LSC) Mobile metadata cache programmatically using Anonymous Apex, without the Admin Console UI.
 
-## Why Two Scripts?
+## How It Works
 
-Salesforce does not allow DML operations and HTTP callouts in the same execution context. The process is split into two steps:
+Salesforce does not allow DML operations and HTTP callouts in the same execution context. This is solved with a `@future(callout=true)` method:
 
-1. **Step 1** — Create `LifeSciMobileMetadataRecord` parent and child records (DML)
-2. **Step 2** — Call the Connect API to trigger metadata generation (callout)
+1. **`generate_metadata_cache.apex`** (Anonymous Apex) — Creates parent and child `LifeSciMobileMetadataRecord` records, then calls the `@future` method
+2. **`MetadataGeneratorCallout.cls`** (Apex Class) — Contains the `@future(callout=true)` method that calls the Connect API to trigger generation
 
-A single-file version (`generate_metadata_cache.apex`) is included for reference, but it will fail with `System.CalloutException: You have uncommitted work pending` if run as-is.
+The anonymous Apex does the DML, then hands off the parent ID to the `@future` method which runs in a separate transaction and makes the callout.
 
 ## Prerequisites
 
 - Salesforce CLI (`sf`) authenticated to your target org
-- The org must have Life Sciences Cloud installed
-- Your user must have permission to create `LifeSciMobileMetadataRecord` records
-- The org's My Domain URL must be added to **Remote Site Settings** (or use a Named Credential)
+- Life Sciences Cloud installed in the org
+- Permission to create `LifeSciMobileMetadataRecord` records
+- Org's My Domain URL added to **Remote Site Settings**
 
-## Usage
+## Setup
 
-### Step 1: Create Records
+### 1. Deploy the Apex Class
 
-Edit `step1_create_records.apex` to set the correct profile name for your org:
+```bash
+sf project deploy start --source-dir classes --target-org <your-org-alias>
+```
+
+### 2. Set the Profile Name
+
+Edit `generate_metadata_cache.apex` and set the profile name for your org:
 
 ```apex
 Profile pf = [SELECT Id FROM Profile WHERE Name = 'Field Sales Representative' LIMIT 1];
@@ -30,31 +36,15 @@ Profile pf = [SELECT Id FROM Profile WHERE Name = 'Field Sales Representative' L
 
 Common profile names: `Field Sales Representative`, `Medical Sales Representative`, `Key Account Manager`, `Field Medical`.
 
-Run it:
+### 3. Run It
 
 ```bash
-sf apex run --file step1_create_records.apex --target-org <your-org-alias>
+sf apex run --file generate_metadata_cache.apex --target-org <your-org-alias>
 ```
 
-Copy the `PARENT_ID` from the debug output.
+The debug output will show the parent and child record IDs, and confirm the future callout was enqueued.
 
-### Step 2: Trigger Generation
-
-Edit `step2_trigger_generation.apex` and replace `<REPLACE_WITH_PARENT_ID>` with the parent ID from step 1:
-
-```apex
-String parentId = '<REPLACE_WITH_PARENT_ID>';
-```
-
-Run it:
-
-```bash
-sf apex run --file step2_trigger_generation.apex --target-org <your-org-alias>
-```
-
-A `202` response with `"Task enqueued for metadata cache generation."` means success.
-
-### Monitor Progress
+## Monitor Progress
 
 ```sql
 SELECT Id, Name, Status, IntegrationStatus, IntegrationErrorCode, IntegrationErrorMessage
@@ -66,14 +56,19 @@ LIMIT 10
 - **Success:** `Status = 'Active'` and `IntegrationStatus = 'Ok'`
 - **Failed:** Check `IntegrationErrorCode` and `IntegrationErrorMessage`
 
+## Important Note on `@future` and Session ID
+
+`UserInfo.getSessionId()` returns `null` in most async contexts (Batch, Queueable, Schedulable). However, `@future` methods called from **Anonymous Apex** do retain the session ID from the calling context. This is why this approach works — the anonymous Apex session is propagated to the `@future` method.
+
+If you call `MetadataGeneratorCallout.callMetadataEndpoint()` from a Schedulable or Batch class, the session ID will be `null` and the callout will fail with an authorization error.
+
 ## Common Errors
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `List has no rows for assignment to SObject` | Profile name doesn't exist in the org | Query `SELECT Name FROM Profile` to find the correct name |
-| `You have uncommitted work pending` | DML and callout in the same context | Use the two-step approach |
+| `List has no rows for assignment to SObject` | Profile name doesn't exist | Query `SELECT Name FROM Profile` to find the correct name |
 | `Unauthorized endpoint` | Remote Site Setting missing | Add your org's My Domain URL to Remote Site Settings |
-| `UserInfo.getSessionId()` returns null | Running in async context (`@future`, batch, etc.) | Use synchronous Anonymous Apex instead |
+| Response `401` | Session ID is null (async context) | Run from Anonymous Apex, not from Schedulable/Batch |
 
 ## API Reference
 
