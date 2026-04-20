@@ -1,15 +1,21 @@
 # LSC Mobile Metadata Cache Generator
 
-Generate the Life Sciences Cloud (LSC) Mobile metadata cache programmatically using Anonymous Apex, without the Admin Console UI.
+Generate the Life Sciences Cloud (LSC) Mobile metadata cache programmatically using Anonymous Apex or a scheduled job, without the Admin Console UI.
 
 ## How It Works
 
 Salesforce does not allow DML operations and HTTP callouts in the same execution context. This is solved with a `@future(callout=true)` method:
 
-1. **`generate_metadata_cache.apex`** (Anonymous Apex) — Creates parent and child `LifeSciMobileMetadataRecord` records, then calls the `@future` method
-2. **`MetadataGeneratorCallout.cls`** (Apex Class) — Contains the `@future(callout=true)` method that calls the Connect API to trigger generation
+1. DML creates parent and child `LifeSciMobileMetadataRecord` records
+2. The `@future` method runs in a separate transaction and calls the Connect API
 
-The anonymous Apex does the DML, then hands off the parent ID to the `@future` method which runs in a separate transaction and makes the callout.
+### Files
+
+| File | Purpose |
+|------|---------|
+| `generate_metadata_cache.apex` | Anonymous Apex — run on-demand from CLI |
+| `MetadataGeneratorSchedulable.cls` | Schedulable class — run on a cron schedule |
+| `MetadataGeneratorCallout.cls` | `@future(callout=true)` — handles the Connect API call |
 
 ## Prerequisites
 
@@ -20,13 +26,13 @@ The anonymous Apex does the DML, then hands off the parent ID to the `@future` m
 
 ## Setup
 
-### 1. Deploy the Apex Class
+### Deploy the Apex Classes
 
 ```bash
 sf project deploy start --source-dir classes --target-org <your-org-alias>
 ```
 
-### 2. Set the Profile Name
+## Option 1: Run On-Demand (Anonymous Apex)
 
 Edit `generate_metadata_cache.apex` and set the profile name for your org:
 
@@ -34,15 +40,53 @@ Edit `generate_metadata_cache.apex` and set the profile name for your org:
 Profile pf = [SELECT Id FROM Profile WHERE Name = 'Field Sales Representative' LIMIT 1];
 ```
 
-Common profile names: `Field Sales Representative`, `Medical Sales Representative`, `Key Account Manager`, `Field Medical`.
-
-### 3. Run It
+Run it:
 
 ```bash
 sf apex run --file generate_metadata_cache.apex --target-org <your-org-alias>
 ```
 
-The debug output will show the parent and child record IDs, and confirm the future callout was enqueued.
+When run from Anonymous Apex, `UserInfo.getSessionId()` is available and the callout authenticates with the current user's session.
+
+## Option 2: Schedule It (Schedulable)
+
+The Schedulable class requires a **Named Credential** called `SelfOrg` because `UserInfo.getSessionId()` returns `null` in all async contexts (Schedulable, Batch, Queueable).
+
+### Create the Named Credential
+
+1. **Setup > Named Credentials > New Named Credential**
+2. Configure:
+   - **Label:** `SelfOrg`
+   - **Name:** `SelfOrg`
+   - **URL:** Your org's My Domain URL (e.g., `https://yourorg.my.salesforce.com`)
+   - **Identity Type:** Named Principal
+   - **Authentication Protocol:** OAuth 2.0
+   - **Authentication Provider:** Create a Connected App with `full` and `api` scopes, then reference it here
+   - **Scope:** `full api`
+
+### Schedule the Job
+
+With default profile (`Field Sales Representative`):
+
+```apex
+System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new MetadataGeneratorSchedulable());
+```
+
+With a specific profile:
+
+```apex
+System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new MetadataGeneratorSchedulable('Key Account Manager'));
+```
+
+The cron expression `0 0 2 ? * SUN` runs every Sunday at 2:00 AM. Adjust as needed.
+
+### Unschedule
+
+```apex
+for (CronTrigger ct : [SELECT Id FROM CronTrigger WHERE CronJobDetail.Name = 'Metadata Cache Gen']) {
+    System.abortJob(ct.Id);
+}
+```
 
 ## Monitor Progress
 
@@ -56,11 +100,14 @@ LIMIT 10
 - **Success:** `Status = 'Active'` and `IntegrationStatus = 'Ok'`
 - **Failed:** Check `IntegrationErrorCode` and `IntegrationErrorMessage`
 
-## Important Note on `@future` and Session ID
+## Authentication Summary
 
-`UserInfo.getSessionId()` returns `null` in most async contexts (Batch, Queueable, Schedulable). However, `@future` methods called from **Anonymous Apex** do retain the session ID from the calling context. This is why this approach works — the anonymous Apex session is propagated to the `@future` method.
+| Execution Context | Auth Method | Named Credential Required? |
+|-------------------|-------------|---------------------------|
+| Anonymous Apex | `UserInfo.getSessionId()` | No |
+| Schedulable / Batch / Queueable | Named Credential (`SelfOrg`) | Yes |
 
-If you call `MetadataGeneratorCallout.callMetadataEndpoint()` from a Schedulable or Batch class, the session ID will be `null` and the callout will fail with an authorization error.
+The `MetadataGeneratorCallout` class automatically detects the context: if a session ID is available, it uses it directly; otherwise, it falls back to `callout:SelfOrg`.
 
 ## Common Errors
 
@@ -68,7 +115,8 @@ If you call `MetadataGeneratorCallout.callMetadataEndpoint()` from a Schedulable
 |-------|-------|-----|
 | `List has no rows for assignment to SObject` | Profile name doesn't exist | Query `SELECT Name FROM Profile` to find the correct name |
 | `Unauthorized endpoint` | Remote Site Setting missing | Add your org's My Domain URL to Remote Site Settings |
-| Response `401` | Session ID is null (async context) | Run from Anonymous Apex, not from Schedulable/Batch |
+| Response `401` | Session ID is null in async context | Set up the `SelfOrg` Named Credential |
+| `Could not find named credential: SelfOrg` | Named Credential not configured | Follow the Named Credential setup above |
 
 ## API Reference
 
