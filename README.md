@@ -48,6 +48,22 @@ Or run inline with custom profiles:
 sf apex run --target-org <your-org-alias> -f <(echo "new Demo_MetadataGeneratorSchedulable(new List<String>{'Field Sales Representative', 'Key Account Manager', 'Field Medical'}).execute(null);")
 ```
 
+Or paste this into **Developer Console > Debug > Open Execute Anonymous Window**:
+
+```apex
+new Demo_MetadataGeneratorSchedulable().execute(null);
+```
+
+To specify custom profiles in Developer Console:
+
+```apex
+new Demo_MetadataGeneratorSchedulable(new List<String>{
+    'Field Sales Representative',
+    'Key Account Manager',
+    'Field Medical'
+}).execute(null);
+```
+
 When run from Anonymous Apex, `UserInfo.getSessionId()` is available and the callout authenticates with the current user's session.
 
 ## Monitor Progress
