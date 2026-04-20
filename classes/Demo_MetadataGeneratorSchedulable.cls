@@ -1,11 +1,11 @@
-public class MetadataGeneratorSchedulable implements Schedulable {
+public class Demo_MetadataGeneratorSchedulable implements Schedulable {
     private List<String> profileNames;
 
-    public MetadataGeneratorSchedulable(List<String> profileNames) {
+    public Demo_MetadataGeneratorSchedulable(List<String> profileNames) {
         this.profileNames = profileNames;
     }
 
-    public MetadataGeneratorSchedulable() {
+    public Demo_MetadataGeneratorSchedulable() {
         this(new List<String>{
             'Field Sales Representative',
             'Key Account Manager'
@@ -49,6 +49,6 @@ public class MetadataGeneratorSchedulable implements Schedulable {
 
         System.debug('Parent Id: ' + parent.Id);
 
-        MetadataGeneratorCallout.callMetadataEndpoint(parent.Id);
+        Demo_MetadataGeneratorCallout.callMetadataEndpoint(parent.Id);
     }
 }

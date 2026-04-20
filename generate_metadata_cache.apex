@@ -1,4 +1,4 @@
 // Generate LSC Mobile Metadata Cache — run on-demand
-// Requires: MetadataGeneratorSchedulable + MetadataGeneratorCallout deployed to the org
+// Requires: Demo_MetadataGeneratorSchedulable + Demo_MetadataGeneratorCallout deployed to the org
 
-new MetadataGeneratorSchedulable().execute(null);
+new Demo_MetadataGeneratorSchedulable().execute(null);

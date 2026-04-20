@@ -14,8 +14,8 @@ Salesforce does not allow DML operations and HTTP callouts in the same execution
 | File | Purpose |
 |------|---------|
 | `generate_metadata_cache.apex` | Anonymous Apex — run on-demand from CLI |
-| `MetadataGeneratorSchedulable.cls` | Schedulable class — run on a cron schedule |
-| `MetadataGeneratorCallout.cls` | `@future(callout=true)` — handles the Connect API call |
+| `Demo_MetadataGeneratorSchedulable.cls` | Schedulable class — run on a cron schedule |
+| `Demo_MetadataGeneratorCallout.cls` | `@future(callout=true)` — handles the Connect API call |
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ sf project deploy start --source-dir classes --target-org <your-org-alias>
 
 ## Option 1: Run On-Demand (Anonymous Apex)
 
-`generate_metadata_cache.apex` calls `MetadataGeneratorSchedulable.execute(null)` directly, reusing the same logic as the scheduled job.
+`generate_metadata_cache.apex` calls `Demo_MetadataGeneratorSchedulable.execute(null)` directly, reusing the same logic as the scheduled job.
 
 With default profiles:
 
@@ -45,7 +45,7 @@ sf apex run --file generate_metadata_cache.apex --target-org <your-org-alias>
 Or run inline with custom profiles:
 
 ```bash
-sf apex run --target-org <your-org-alias> -f <(echo "new MetadataGeneratorSchedulable(new List<String>{'Field Sales Representative', 'Key Account Manager', 'Field Medical'}).execute(null);")
+sf apex run --target-org <your-org-alias> -f <(echo "new Demo_MetadataGeneratorSchedulable(new List<String>{'Field Sales Representative', 'Key Account Manager', 'Field Medical'}).execute(null);")
 ```
 
 When run from Anonymous Apex, `UserInfo.getSessionId()` is available and the callout authenticates with the current user's session.
@@ -71,14 +71,14 @@ The Schedulable class requires a **Named Credential** called `SelfOrg` because `
 With default profiles (`Field Sales Representative` + `Key Account Manager`):
 
 ```apex
-System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new MetadataGeneratorSchedulable());
+System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN', new Demo_MetadataGeneratorSchedulable());
 ```
 
 With custom profiles:
 
 ```apex
 System.schedule('Metadata Cache Gen', '0 0 2 ? * SUN',
-    new MetadataGeneratorSchedulable(new List<String>{
+    new Demo_MetadataGeneratorSchedulable(new List<String>{
         'Field Sales Representative',
         'Key Account Manager',
         'Field Medical'
@@ -115,7 +115,7 @@ LIMIT 10
 | Anonymous Apex | `UserInfo.getSessionId()` | No |
 | Schedulable / Batch / Queueable | Named Credential (`SelfOrg`) | Yes |
 
-The `MetadataGeneratorCallout` class automatically detects the context: if a session ID is available, it uses it directly; otherwise, it falls back to `callout:SelfOrg`.
+The `Demo_MetadataGeneratorCallout` class automatically detects the context: if a session ID is available, it uses it directly; otherwise, it falls back to `callout:SelfOrg`.
 
 ## Common Errors
 

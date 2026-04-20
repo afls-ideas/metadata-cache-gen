@@ -1,4 +1,4 @@
-public class MetadataGeneratorCallout {
+public class Demo_MetadataGeneratorCallout {
     private static final String API_PATH = '/services/data/v66.0/connect/life-sciences/commercial/metadata/actions/generate';
 
     @future(callout=true)
