@@ -1,6 +1,6 @@
 # LSC Mobile Metadata Cache Generator
 
-[![Deploy to Salesforce](https://raw.githubusercontent.com/afawcett/githubsfdeploy/master/deploy.png)](https://githubsfdeploy.herokuapp.com?owner=afls-ideas&repo=metadata-cache-gen)
+[![Deploy to Salesforce](https://raw.githubusercontent.com/afawcett/githubsfdeploy/master/deploy.png)](https://githubsfdeploy.herokuapp.com?owner=afls-ideas&repo=metadata-cache-gen&ref=main)
 
 Generate the Life Sciences Cloud (LSC) Mobile metadata cache programmatically using Anonymous Apex, without the Admin Console UI.
 
